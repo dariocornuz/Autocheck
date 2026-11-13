@@ -217,6 +217,7 @@ function parseVin(raw, nowYear) {
     ]);
     if (p.odd.length) h += '<p class="note warn">La serie normal no usa la letra ' + esc(p.odd.join(', ')) + '. Revisa que esté bien escrita.</p>';
     h += '<div class="row">' + copyBtn(p.code, 'Copiar patente') + '</div></div>';
+    h += '<div class="card"><h2>Datos en línea</h2><div id="live"><p class="note">Consultando…</p></div></div>';
     h += '<div class="card"><h2>Consultas con esta patente</h2><div class="links">' +
       link('https://www.prt.cl/Paginas/RevisionTecnica.aspx', 'Revisión técnica (MTT)', 'Gratis', 'Muestra marca, modelo, año y estado de la revisión técnica y de gases.') +
       link('https://www.autoseguro.gob.cl/', 'Encargo por robo (Autoseguro, PDI)', 'Gratis', 'Indica si el vehículo figura como robado.') +
@@ -254,6 +255,37 @@ function parseVin(raw, nowYear) {
     return h;
   }
 
+  var HIDE = /owner|propiet|due[nñ]|rut|purchase|instruc|example/i;
+  function flat(obj, pre, acc) {
+    Object.keys(obj || {}).forEach(function (k) {
+      var v = obj[k], label = (pre ? pre + ' · ' : '') + k.replace(/_/g, ' ');
+      if (HIDE.test(k) || v === null || v === '' || v === undefined) return;
+      if (Array.isArray(v)) { if (v.length && typeof v[0] !== 'object') acc.push([label, v.join(', ')]); else if (v.length) flat(v[0], label, acc); }
+      else if (typeof v === 'object') { if (!pre || pre.split(' · ').length < 2) flat(v, label, acc); }
+      else acc.push([label, v === true ? 'Sí' : v === false ? 'No' : String(v)]);
+    });
+    return acc;
+  }
+  function tryLive(code) { // consulta gratuita y sin clave de AutoRiesgo; no se muestran datos del propietario
+    var box = $('live'); if (!box) return;
+    var fail = function () {
+      if ($('live') !== box) return;
+      box.innerHTML = '<p class="note">No se pudo obtener la consulta en línea. Puedes hacerla a mano:</p><div class="links">' +
+        link('https://autoriesgo.cl/', 'Consulta gratuita en AutoRiesgo', 'Gratis', 'Marca, modelo, año y estado de la revisión técnica.') + '</div>';
+    };
+    if (!window.fetch) return fail();
+    fetch('https://api.autoriesgo.cl/api/v1/report/agent/lookup?patente=' + encodeURIComponent(code))
+      .then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .then(function (j) {
+        if ($('live') !== box) return;
+        var d = j && (j.vehicle_data || j.data);
+        var pairs = d && typeof d === 'object' ? flat(d, '', []) : [];
+        if (!pairs.length) { box.innerHTML = '<p class="note">La fuente no tiene registros para esta patente.</p>'; return; }
+        box.innerHTML = rows(pairs.map(function (x) { return [esc(x[0].charAt(0).toUpperCase() + x[0].slice(1)), esc(x[1])]; })) +
+          '<p class="note">Fuente: consulta gratuita de AutoRiesgo (servicio privado, no oficial). Confirma revisión técnica y robo en los enlaces oficiales de abajo.</p>';
+      }).catch(fail);
+  }
+
   function tryVpic(vin) { // consulta en vivo a NHTSA vPIC; si falla, la página sigue con los datos locales
     var box = $('vpic'); if (!box || !window.fetch) return;
     fetch('https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/' + vin + '?format=json')
@@ -273,7 +305,7 @@ function parseVin(raw, nowYear) {
     var c = clean(value); if (!c) { out.innerHTML = ''; return; }
     q.value = c;
     var p = parsePlate(c);
-    if (p) { out.innerHTML = renderPlate(p); return; }
+    if (p) { out.innerHTML = renderPlate(p); tryLive(p.code); return; }
     if (c.length >= 11) {
       var r = parseVin(c, new Date().getFullYear());
       out.innerHTML = renderVin(r);
