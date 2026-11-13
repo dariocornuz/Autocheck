@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Antecedentes de vehículo: patente y VIN</title>
+<style>
+  :root {
+    --bg: #f3f1ec; --card: #ffffff; --ink: #16181d; --muted: #5f646e; --line: #dcd8cf;
+    --accent: #0b4a8f; --accent-ink: #ffffff; --ok: #1a6b3c; --warn: #9a5b00; --bad: #a3261f;
+    --chip: #e9e6de; --plate: #fdfdfb; --plate-ink: #111;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121418; --card: #1b1e24; --ink: #eceef2; --muted: #9aa0ab; --line: #2c3038;
+      --accent: #6fb0ff; --accent-ink: #0b1626; --ok: #6fd39a; --warn: #f0b860; --bad: #ff8a80;
+      --chip: #262a32;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 620px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 1.35rem; margin: 4px 0 2px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 16px; font-size: .93rem; }
+  form { display: flex; gap: 8px; }
+  input[type=text] { flex: 1; min-width: 0; font: 600 1.25rem/1 ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: .08em; text-transform: uppercase; padding: 14px 12px; border-radius: 10px;
+    border: 2px solid var(--line); background: var(--card); color: var(--ink); }
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+  button { font: inherit; cursor: pointer; }
+  .go { padding: 0 18px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font-weight: 650; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+  .chip { border: 0; background: var(--chip); color: var(--ink); border-radius: 999px; padding: 6px 11px; font-size: .82rem; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-top: 16px; }
+  .card h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+  .plate { display: inline-flex; flex-direction: column; align-items: center; background: var(--plate); color: var(--plate-ink);
+    border: 3px solid #111; border-radius: 8px; padding: 6px 18px 3px; }
+  .plate b { font: 800 2rem/1.05 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: .06em; }
+  .plate span { font-size: .62rem; letter-spacing: .32em; font-weight: 700; }
+  .vin { font: 700 1.05rem/1.3 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: .05em; word-break: break-all; }
+  .vin i { font-style: normal; padding: 1px 0; }
+  .vin .a { color: var(--accent); } .vin .b { color: var(--warn); } .vin .c { color: var(--ok); }
+  dl { display: grid; grid-template-columns: minmax(110px, 40%) 1fr; gap: 0; margin: 12px 0 0; }
+  dt, dd { padding: 8px 0; border-top: 1px solid var(--line); margin: 0; }
+  dt { color: var(--muted); font-size: .9rem; padding-right: 10px; }
+  dd { font-weight: 560; overflow-wrap: anywhere; }
+  .ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+  .note { font-size: .86rem; color: var(--muted); margin: 10px 0 0; }
+  .links { display: grid; gap: 8px; }
+  .links a { display: block; text-decoration: none; color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; }
+  .links a strong { display: block; color: var(--accent); }
+  .links a small { color: var(--muted); }
+  .tag { display: inline-block; font-size: .7rem; font-weight: 700; border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 1px; }
+  .free { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+  .paid { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+  .copy { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 8px; padding: 7px 11px; font-size: .86rem; }
+  .err { color: var(--bad); font-weight: 600; }
+  footer { margin-top: 22px; font-size: .8rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Antecedentes de vehículo</h1>
+  <p class="sub">Escribe una patente chilena o un VIN de 17 caracteres. La app reconoce cuál es.</p>
+  <form id="f" autocomplete="off">
+    <input id="q" type="text" inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="20" placeholder="BBBB10 o VIN" aria-label="Patente o VIN">
+    <button class="go" type="submit">Consultar</button>
+  </form>
+  <div class="chips" id="chips"></div>
+  <div id="out"></div>
+  <footer>
+    Los datos calculados aquí salen de la propia patente o VIN y no reemplazan un certificado oficial.
+    Los datos de dueño, marca y modelo por patente solo están en las fuentes oficiales enlazadas.
+  </footer>
+</main>
+<script>
+/*LOGIC-START*/
+var DV_MAP = {B:1,C:2,D:3,F:4,G:5,H:6,J:7,K:8,L:9,P:0,R:2,S:3,T:4,V:5,W:6,X:7,Y:8,Z:9};
+var RT_MES = {9:'enero',0:'febrero',1:'abril',2:'mayo',3:'junio',4:'julio',5:'agosto',6:'septiembre',7:'octubre',8:'noviembre'};
+
+function clean(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+
+function plateDV(p) { // solo formato LLLLNN
+  var d = [];
+  for (var i = 0; i < p.length; i++) {
+    var c = p[i];
+    if (/\d/.test(c)) d.push(+c);
+    else if (c in DV_MAP) d.push(DV_MAP[c]);
+    else return null;
+  }
+  var sum = 0, w = 2;
+  for (var j = d.length - 1; j >= 0; j--) { sum += d[j] * w; w++; }
+  var r = 11 - (sum % 11);
+  return r === 11 ? '0' : r === 10 ? 'K' : String(r);
+}
+
+function parsePlate(raw) {
+  var p = clean(raw), m;
+  if (/^[A-Z]{4}\d{2}$/.test(p)) {
+    var odd = p.slice(0, 4).split('').filter(function (c) { return !(c in DV_MAP); });
+    return { kind: 'auto-nuevo', code: p, pretty: p.slice(0,2) + '·' + p.slice(2,4) + '·' + p.slice(4),
+      tipo: 'Automóvil, camioneta u otro vehículo de 4 o más ruedas', formato: 'LLLL·NN, en uso desde septiembre de 2007',
+      dv: plateDV(p), last: +p[5], odd: odd };
+  }
+  if (/^[A-Z]{2}\d{4}$/.test(p)) {
+    if (p[2] === '0') { // LL0NNN: moto antigua escrita como la pide el Registro Civil
+      return { kind: 'moto', code: p, pretty: p.slice(0,2) + '·' + p.slice(3), tipo: 'Motocicleta',
+        formato: 'LL·NNN (también puede ser un auto antiguo ' + p.slice(0,2) + '·' + p.slice(2) + ')', dv: null, last: +p[5], odd: [] };
+    }
+    return { kind: 'auto-antiguo', code: p, pretty: p.slice(0,2) + '·' + p.slice(2,4) + '·' + p.slice(4),
+      tipo: 'Automóvil, camioneta u otro vehículo de 4 o más ruedas', formato: 'LL·NNNN, inscrito antes de septiembre de 2007',
+      dv: null, last: +p[5], odd: [] };
+  }
+  if (/^[A-Z]{3}\d{2}$/.test(p)) {
+    return { kind: 'moto', code: p.slice(0,3) + '0' + p.slice(3), pretty: p.slice(0,3) + '·' + p.slice(3), tipo: 'Motocicleta',
+      formato: 'LLL·NN (serie nueva de motos)', dv: null, last: +p[4], odd: [] };
+  }
+  if (/^[A-Z]{2}\d{3}$/.test(p)) {
+    return { kind: 'moto', code: p.slice(0,2) + '0' + p.slice(2), pretty: p.slice(0,2) + '·' + p.slice(2), tipo: 'Motocicleta',
+      formato: 'LL·NNN (serie antigua de motos)', dv: null, last: +p[4], odd: [] };
+  }
+  return null;
+}
+
+var ORD = 'ABCDEFGHJKLMNPRSTUVWXYZ1234567890';
+var REGIONS = [ // [primer carácter, desde, hasta, país]
+  ['1','A','0','Estados Unidos'],['4','A','0','Estados Unidos'],['5','A','0','Estados Unidos'],
+  ['2','A','0','Canadá'],['3','A','X','México'],['6','A','W','Australia'],
+  ['7','A','E','Nueva Zelanda'],['7','F','0','Estados Unidos'],
+  ['8','A','E','Argentina'],['8','F','K','Chile'],['8','L','R','Ecuador'],['8','S','W','Perú'],['8','X','2','Venezuela'],
+  ['9','A','E','Brasil'],['9','F','K','Colombia'],['9','S','W','Uruguay'],['9','3','9','Brasil'],
+  ['J','A','0','Japón'],['K','L','R','Corea del Sur'],['L','A','0','China'],
+  ['M','A','E','India'],['M','F','K','Indonesia'],['M','L','R','Tailandia'],
+  ['N','L','R','Turquía'],['P','L','R','Malasia'],['R','F','K','Taiwán'],['R','L','R','Vietnam'],
+  ['S','A','M','Reino Unido'],['S','N','T','Alemania'],['S','U','Z','Polonia'],
+  ['T','A','H','Suiza'],['T','J','P','República Checa'],['T','R','V','Hungría'],['T','W','1','Portugal'],
+  ['V','A','E','Austria'],['V','F','R','Francia'],['V','S','W','España'],
+  ['W','A','0','Alemania'],['X','L','R','Países Bajos'],['X','3','0','Rusia'],
+  ['Y','A','E','Bélgica'],['Y','F','K','Finlandia'],['Y','S','W','Suecia'],
+  ['Z','A','U','Italia'],['A','A','H','Sudáfrica']
+];
+var CONT = {A:'África',B:'África',C:'África',J:'Asia',K:'Asia',L:'Asia',M:'Asia',N:'Asia',P:'Asia',R:'Asia',
+  S:'Europa',T:'Europa',U:'Europa',V:'Europa',W:'Europa',X:'Europa',Y:'Europa',Z:'Europa',
+  1:'Norteamérica',2:'Norteamérica',3:'Norteamérica',4:'Norteamérica',5:'Norteamérica',6:'Oceanía',7:'Oceanía',8:'Sudamérica',9:'Sudamérica'};
+var WMI = {
+  '1G1':'Chevrolet','1GC':'Chevrolet (camionetas)','1FA':'Ford','1FT':'Ford (camionetas)','1HG':'Honda','1N4':'Nissan','1C4':'Chrysler / Jeep / Dodge','1HD':'Harley-Davidson',
+  '2T1':'Toyota','2HG':'Honda','3VW':'Volkswagen','3N1':'Nissan','3G1':'Chevrolet','3FA':'Ford','4T1':'Toyota','5TD':'Toyota','5N1':'Nissan','5NP':'Hyundai','5XY':'Kia','5YJ':'Tesla','7SA':'Tesla',
+  'JTD':'Toyota','JHM':'Honda','JN1':'Nissan','JM1':'Mazda','JMZ':'Mazda','JF1':'Subaru','JMY':'Mitsubishi','JMB':'Mitsubishi',
+  'KMH':'Hyundai','KNA':'Kia','KND':'Kia','KL1':'Chevrolet (GM Corea)','KPT':'SsangYong / KGM',
+  'LFV':'FAW-Volkswagen','LSV':'SAIC Volkswagen','LSG':'SAIC-GM','LSJ':'MG (SAIC)','LGW':'Great Wall / Haval','LVV':'Chery','LB3':'Geely','LGX':'BYD','LC0':'BYD','LJ1':'JAC','LS5':'Changan','LZW':'SAIC-GM-Wuling','LRW':'Tesla','LVS':'Changan Ford','LHG':'GAC Honda','LVH':'Dongfeng Honda','LBE':'Beijing Hyundai',
+  'MAL':'Hyundai','MA3':'Maruti Suzuki','MAJ':'Ford','MD2':'Bajaj','ME4':'Honda (motos)','MMB':'Mitsubishi','MR0':'Toyota','MNT':'Nissan','MPA':'Isuzu',
+  'SAL':'Land Rover','SAJ':'Jaguar','SCC':'Lotus','SHH':'Honda','SJN':'Nissan','TMB':'Škoda','TRU':'Audi',
+  'VF1':'Renault','VF3':'Peugeot','VF7':'Citroën','VSS':'SEAT','VNK':'Toyota',
+  'WAU':'Audi','WBA':'BMW','WBS':'BMW M','WDB':'Mercedes-Benz','WDD':'Mercedes-Benz','W1K':'Mercedes-Benz','WP0':'Porsche','WP1':'Porsche','WVW':'Volkswagen','WVG':'Volkswagen','WV1':'Volkswagen Vehículos Comerciales','WV2':'Volkswagen Vehículos Comerciales','W0L':'Opel','WF0':'Ford','WMW':'MINI',
+  'YV1':'Volvo','YS3':'Saab','ZFA':'Fiat','ZAR':'Alfa Romeo','ZFF':'Ferrari','ZHW':'Lamborghini','ZAM':'Maserati',
+  '9BW':'Volkswagen','9BG':'Chevrolet','9BF':'Ford','9BD':'Fiat','9BR':'Toyota','93H':'Honda','93Y':'Renault','93R':'Toyota','94D':'Nissan',
+  '8AP':'Fiat','8AF':'Ford','8AG':'Chevrolet','8AW':'Volkswagen','8AD':'Peugeot','8A1':'Renault','8AJ':'Toyota'
+};
+var WMI2 = {JT:'Toyota',JH:'Honda',JN:'Nissan',JM:'Mazda',JF:'Subaru',JS:'Suzuki',JA:'Isuzu / Mitsubishi',KM:'Hyundai',KN:'Kia',WA:'Audi',WB:'BMW',WD:'Mercedes-Benz'};
+var YEAR_SEQ = 'ABCDEFGHJKLMNPRSTVWXY123456789';
+var TR = {A:1,B:2,C:3,D:4,E:5,F:6,G:7,H:8,J:1,K:2,L:3,M:4,N:5,P:7,R:9,S:2,T:3,U:4,V:5,W:6,X:7,Y:8,Z:9};
+var WEIGHTS = [8,7,6,5,4,3,2,10,0,9,8,7,6,5,4,3,2];
+
+function vinCheck(v) {
+  var s = 0;
+  for (var i = 0; i < 17; i++) { var c = v[i]; s += (/\d/.test(c) ? +c : TR[c]) * WEIGHTS[i]; }
+  var r = s % 11; return r === 10 ? 'X' : String(r);
+}
+function vinCountry(v) {
+  var a = v[0], b = ORD.indexOf(v[1]);
+  for (var i = 0; i < REGIONS.length; i++) {
+    var r = REGIONS[i];
+    if (r[0] === a && b >= ORD.indexOf(r[1]) && b <= ORD.indexOf(r[2])) return r[3];
+  }
+  return null;
+}
+function vinYears(v, nowYear) {
+  var i = YEAR_SEQ.indexOf(v[9]); if (i < 0) return [];
+  return [1980 + i, 2010 + i].filter(function (y) { return y <= nowYear + 1; });
+}
+function parseVin(raw, nowYear) {
+  var v = clean(raw);
+  if (v.length !== 17) return { error: 'Un VIN tiene exactamente 17 caracteres; este tiene ' + v.length + '.' };
+  if (/[IOQ]/.test(v)) return { error: 'Un VIN nunca usa las letras I, O ni Q. Revisa si son 1 o 0.' };
+  var cd = vinCheck(v);
+  return { vin: v, wmi: v.slice(0,3), vds: v.slice(3,9), vis: v.slice(9),
+    continente: CONT[v[0]] || null, pais: vinCountry(v),
+    marca: WMI[v.slice(0,3)] || WMI2[v.slice(0,2)] || null,
+    years: vinYears(v, nowYear), planta: v[10], serie: v.slice(11),
+    checkOk: cd === v[8], checkCalc: cd };
+}
+/*LOGIC-END*/
+
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var out = $('out'), q = $('q');
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+  var rows = function (pairs) {
+    return '<dl>' + pairs.filter(Boolean).map(function (p) { return '<dt>' + p[0] + '</dt><dd>' + p[1] + '</dd>'; }).join('') + '</dl>';
+  };
+  var link = function (href, title, tag, desc) {
+    return '<a href="' + href + '" target="_blank" rel="noopener"><strong>' + title +
+      '<span class="tag ' + (tag === 'Gratis' ? 'free' : 'paid') + '">' + tag + '</span></strong><small>' + desc + '</small></a>';
+  };
+  var copyBtn = function (text, label) { return '<button class="copy" type="button" data-copy="' + esc(text) + '">' + label + '</button>'; };
+
+  function renderPlate(p) {
+    var h = '<div class="card"><h2>Patente chilena</h2><div class="plate"><b>' + esc(p.pretty) + '</b><span>CHILE</span></div>';
+    h += rows([
+      ['Tipo', p.tipo],
+      ['Formato', p.formato],
+      p.dv !== null ? ['Dígito verificador', p.code + '-' + p.dv] : null,
+      p.kind !== 'moto' ? ['Revisión técnica', 'Le corresponde en <b>' + RT_MES[p.last] + '</b> (calendario de vehículos particulares, último dígito ' + p.last + ')'] : null,
+      p.kind === 'moto' ? ['Código para consultas', p.code + ' (las motos se escriben con un 0 intercalado)'] : null
+    ]);
+    if (p.odd.length) h += '<p class="note warn">La serie normal no usa la letra ' + esc(p.odd.join(', ')) + '. Revisa que esté bien escrita.</p>';
+    h += '<div class="row">' + copyBtn(p.code, 'Copiar patente') + '</div></div>';
+    h += '<div class="card"><h2>Consultas con esta patente</h2><div class="links">' +
+      link('https://www.prt.cl/Paginas/RevisionTecnica.aspx', 'Revisión técnica (MTT)', 'Gratis', 'Muestra marca, modelo, año y estado de la revisión técnica y de gases.') +
+      link('https://www.autoseguro.gob.cl/', 'Encargo por robo (Autoseguro, PDI)', 'Gratis', 'Indica si el vehículo figura como robado.') +
+      link('https://www.registrocivil.cl/principal/servicios-en-linea/multas-de-transito-no-pagadas', 'Multas de tránsito no pagadas (Registro Civil)', 'Pagado', 'Certificado oficial; ChileAtiende informa un valor de $1.430.') +
+      link('https://www.registrocivil.cl/', 'Propietario y anotaciones (CAV, Registro Civil)', 'Pagado', 'Certificado de Anotaciones Vigentes: dueño actual, prendas y prohibiciones. Está en Servicios en línea, sección Vehículos.') +
+      '</div><p class="note">Copia la patente y pégala en cada sitio. Piden captcha, por eso ninguna app gratuita puede traer esos datos de forma automática.</p></div>';
+    return h;
+  }
+
+  function renderVin(r) {
+    if (r.error) return '<div class="card"><p class="err">' + esc(r.error) + '</p></div>';
+    var yr = r.years.length ? r.years.slice().reverse().join(' o ') : 'No codificado en este VIN';
+    var h = '<div class="card"><h2>VIN</h2><div class="vin"><i class="a">' + r.wmi + '</i><i class="b">' + r.vds + '</i><i class="c">' + r.vis + '</i></div>';
+    h += rows([
+      ['Fabricante', r.marca ? esc(r.marca) + ' <small>(según prefijo ' + r.wmi + ')</small>' : 'Prefijo ' + r.wmi + ' no está en la tabla local'],
+      ['País de fabricación', r.pais ? esc(r.pais) : (r.continente ? 'No identificado (' + r.continente + ')' : 'No identificado')],
+      ['Año modelo', yr],
+      ['Código de planta', r.planta],
+      ['Número de serie', r.serie],
+      ['Dígito de control', r.checkOk ? '<span class="ok">Válido (' + r.checkCalc + ')</span>'
+        : '<span class="warn">No coincide (esperado ' + r.checkCalc + ')</span><br><small>Habitual en vehículos europeos y japoneses, que no usan este dígito; en uno de Norteamérica o China indica un VIN mal copiado.</small>']
+    ]);
+    h += '<div id="vpic"></div><div class="row">' + copyBtn(r.vin, 'Copiar VIN') + '</div></div>';
+    h += '<div class="card"><h2>Consultas con este VIN</h2><div class="links">' +
+      link('https://vpic.nhtsa.dot.gov/decoder/', 'Decodificador oficial NHTSA vPIC', 'Gratis', 'Modelo, carrocería, motor y planta. Mejor cobertura en vehículos vendidos en Norteamérica.') +
+      link('https://www.nhtsa.gov/recalls', 'Llamados a revisión (NHTSA)', 'Gratis', 'Campañas de seguridad pendientes por VIN, para vehículos de EE. UU.') +
+      link('https://www.autoseguro.gob.cl/', 'Encargo por robo en Chile (Autoseguro)', 'Gratis', 'También acepta búsqueda por VIN o número de motor.') +
+      '</div></div>';
+    h += '<div class="card"><h2>Siniestros e historial (importados)</h2><div class="links">' +
+      link('https://www.nicb.org/vincheck', 'NICB VINCheck', 'Gratis', 'Pérdida total, salvage, inundación o robo informados por aseguradoras de EE. UU. Máximo 5 consultas diarias.') +
+      link('https://vinfax.net/', 'Remates Copart / IAAI (vinfax)', 'Gratis', 'Fotos del daño antes de la reparación, tipo de daño, kilometraje y precio. Archivo no oficial, desde 2024.') +
+      link('https://www.google.com/search?q=%22' + r.vin + '%22', 'Buscar este VIN en Google', 'Gratis', 'Suele encontrar avisos antiguos y lotes de remate con fotos, de cualquier país.') +
+      link('https://vehiclehistory.bja.ojp.gov/', 'Informe NMVTIS (gobierno de EE. UU.)', 'Pagado', 'Marcas de título (salvage, rebuilt, flood), pérdida total y último odómetro, vía proveedores aprobados.') +
+      '</div><p class="note">Estas fuentes cubren vehículos que circularon en EE. UU. Un resultado limpio no prueba que no haya tenido choques: solo que no hubo pérdida total ni remate registrado.</p></div>';
+    return h;
+  }
+
+  function tryVpic(vin) { // consulta en vivo a NHTSA vPIC; si falla, la página sigue con los datos locales
+    var box = $('vpic'); if (!box || !window.fetch) return;
+    fetch('https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/' + vin + '?format=json')
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var d = j && j.Results && j.Results[0]; if (!d || !d.Make) return;
+        var motor = [d.DisplacementL ? (+d.DisplacementL).toFixed(1) + ' L' : '', d.EngineCylinders ? d.EngineCylinders + ' cil.' : ''].filter(Boolean).join(', ');
+        box.innerHTML = '<p class="note">Datos en línea de NHTSA vPIC:</p>' + rows([
+          ['Marca', esc(d.Make)], d.Model ? ['Modelo', esc(d.Model)] : null, d.ModelYear ? ['Año', esc(d.ModelYear)] : null,
+          d.BodyClass ? ['Carrocería', esc(d.BodyClass)] : null, d.FuelTypePrimary ? ['Combustible', esc(d.FuelTypePrimary)] : null,
+          motor ? ['Motor', esc(motor)] : null, d.PlantCountry ? ['Planta', esc([d.PlantCity, d.PlantCountry].filter(Boolean).join(', '))] : null
+        ]);
+      }).catch(function () {});
+  }
+
+  function run(value) {
+    var c = clean(value); if (!c) { out.innerHTML = ''; return; }
+    q.value = c;
+    var p = parsePlate(c);
+    if (p) { out.innerHTML = renderPlate(p); return; }
+    if (c.length >= 11) {
+      var r = parseVin(c, new Date().getFullYear());
+      out.innerHTML = renderVin(r);
+      if (!r.error) tryVpic(r.vin);
+      return;
+    }
+    out.innerHTML = '<div class="card"><p class="err">No reconozco «' + esc(c) + '» como patente chilena.</p>' +
+      '<p class="note">Formatos válidos: BBBB10, AA1234 o, en motos, ABC12 y AB123. Si el vehículo es extranjero, ingresa su VIN de 17 caracteres (está en el parabrisas, el marco de la puerta o el padrón).</p></div>';
+  }
+
+  $('f').addEventListener('submit', function (e) { e.preventDefault(); run(q.value); q.blur(); });
+  out.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-copy]'); if (!b) return;
+    var t = b.getAttribute('data-copy'), old = b.textContent;
+    var done = function (ok) { b.textContent = ok ? 'Copiado' : 'Mantén presionado el texto para copiar'; setTimeout(function () { b.textContent = old; }, 1600); };
+    try { navigator.clipboard.writeText(t).then(function () { done(true); }, function () { done(false); }); } catch (x) { done(false); }
+  });
+  [['BKHV52', 'Patente nueva'], ['AB1234', 'Patente antigua'], ['JMYMYV87W8J000488', 'VIN japonés'], ['WAUZZZGA9JA039811', 'VIN alemán']].forEach(function (ex) {
+    var b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = 'Ejemplo: ' + ex[1];
+    b.addEventListener('click', function () { run(ex[0]); }); $('chips').appendChild(b);
+  });
+})();
+</script>
+</body>
+</html>
